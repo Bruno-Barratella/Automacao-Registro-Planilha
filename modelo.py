@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 @dataclass
 class Danfe:
@@ -13,3 +13,14 @@ class Danfe:
     valor_total: str
     cnpj: str
     codigo_cliente: str
+
+    # Novos campos usados pelo classificador.
+    categoria_produtos: str = "REVISAR"
+
+    codigos_produtos: list[str] = field(
+        default_factory=list
+    )
+
+    codigos_nao_cadastrados: list[str] = field(
+        default_factory=list
+    )
