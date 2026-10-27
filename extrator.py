@@ -1,5 +1,45 @@
+
+from pathlib import Path
 from modelo import Danfe
+from classificador_produtos import (
+    carregar_cadastro,
+    extrair_codigos_danfe,
+    classificar_produtos,
+)
 import re
+import sys
+
+
+# ======================================================
+# CADASTRO DE PRODUTOS
+# ======================================================
+
+try:
+    if getattr(sys, "frozen", False):
+        # Executável compilado: pasta onde está o .exe
+        PASTA_BASE = Path(sys.executable).resolve().parent
+    else:
+        # Execução normal pelo PyCharm
+        PASTA_BASE = Path(__file__).resolve().parent
+
+    CAMINHO_CADASTRO = PASTA_BASE / "cadastro_produtos.csv"
+
+    CADASTRO_PRODUTOS = carregar_cadastro(
+        CAMINHO_CADASTRO
+    )
+
+    print(
+        f"{len(CADASTRO_PRODUTOS)} produtos "
+        "carregados para classificação."
+    )
+
+except (FileNotFoundError, ValueError) as erro:
+    print(
+        "ATENÇÃO: não foi possível carregar "
+        f"o cadastro de produtos: {erro}"
+    )
+
+    CADASTRO_PRODUTOS = {}
 
 
 # ======================================================
@@ -49,21 +89,44 @@ def identificar_inicio_danfe(texto):
 # DANFE
 # ======================================================
 
-def extrair_danfe(texto):
 
+def extrair_danfe(texto):
+    # 1. Extrai os códigos da tabela de produtos.
+    codigos = extrair_codigos_danfe(texto)
+
+    # 2. Classifica a nota com o cadastro carregado.
+    if CADASTRO_PRODUTOS:
+        categoria, desconhecidos = classificar_produtos(
+            codigos,
+            CADASTRO_PRODUTOS,
+        )
+    else:
+        categoria = "REVISAR"
+        desconhecidos = codigos
+
+    # 3. Cria o objeto com os dados da DANFE.
     return Danfe(
         cidade=extrair_cidade(texto),
         data_emissao=extrair_data(texto),
         cnpj=extrair_cnpj(texto),
         codigo_cliente=extrair_codigo_cliente(texto),
-        razao_social=f"{extrair_razao(texto)} {extrair_codigo_cliente(texto)}",
+        razao_social=(
+            f"{extrair_razao(texto)} "
+            f"{extrair_codigo_cliente(texto)}"
+        ),
         endereco=extrair_endereco(texto),
         numero_notas=1,
         numero_nf=extrair_numero_nf(texto),
         numero_embarque="",
         peso_bruto=extrair_peso(texto),
-        valor_total=extrair_valor(texto)
+        valor_total=extrair_valor(texto),
+
+        # Novos campos:
+        categoria_produtos=categoria,
+        codigos_produtos=codigos,
+        codigos_nao_cadastrados=desconhecidos,
     )
+
 
 # ======================================================
 # NÚMERO CNPJ
@@ -210,12 +273,7 @@ def extrair_peso(texto):
 
         if "PESO BRUTO" in linha.upper():
 
-            print(">>> ENCONTREI PESO BRUTO")
-            print(f">>> Linha: {linha}")
-
             for proxima_linha in linhas[i + 1:i + 6]:
-
-                print(f">>> Procurando em: {proxima_linha}")
 
                 resultado = re.search(
                     r"\b\d+(?:\.\d{3})*,\d+\b",
@@ -223,15 +281,7 @@ def extrair_peso(texto):
                 )
 
                 if resultado:
-
-                    print(
-                        f">>> PESO ENCONTRADO: "
-                        f"{resultado.group(0)}"
-                    )
-
                     return resultado.group(0)
-
-    print(">>> PESO BRUTO NÃO ENCONTRADO")
 
     return ""
 
